@@ -25,55 +25,6 @@ import java.net.URL;
 import java.util.Calendar;
 
 public class EinkCalActivity extends AppCompatActivity {
-    final Thread updateCalender = new Thread(new Runnable() {
-        private volatile boolean isCalendarUpdating = false;
-
-        @Override
-        public void run() {
-            if (isCalendarUpdating) {
-                //showToast("Already updating");
-                return;
-            }
-            isCalendarUpdating = true;
-
-            String urlCalendar = "https://alltobid.cf/einkcal/1.png";
-
-            EinkCalUtil.NetUtil netUtil = new EinkCalUtil.NetUtil(getApplicationContext());
-            netUtil.setWifiStatus(true);
-            try {
-                URL url = new URL(urlCalendar);
-                HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
-                httpURLConnection.setConnectTimeout(10000);
-                httpURLConnection.setDoInput(true);
-                httpURLConnection.setRequestProperty("Cache-Control", "no-cache");
-                httpURLConnection.setDefaultUseCaches(false);
-                httpURLConnection.setUseCaches(false);
-                httpURLConnection.connect();
-                int responseCode = httpURLConnection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    InputStream inputStream = httpURLConnection.getInputStream();
-                    Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                    inputStream.close();
-
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            ImageView imageView = findViewById(R.id.imageCalendar);
-                            imageView.setImageBitmap(bitmap);
-                            refreshScreen();
-                        }
-                    });
-                } else {
-                    String httpResp = String.format("HTTP resp %d", responseCode);
-                    //showToast(httpResp);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            netUtil.setWifiStatus(false);
-            isCalendarUpdating = false;
-        }
-    });
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -91,15 +42,101 @@ public class EinkCalActivity extends AppCompatActivity {
     private final BroadcastReceiver alarmReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            updateCalender.start();
         }
     };
+    private volatile boolean isCalendarUpdating = false;
+
+    private void updateCalendar() {
+        EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
+        EinkCalUtil.NetUtil netUtil = new EinkCalUtil.NetUtil(getApplicationContext());
+
+        if (isCalendarUpdating)
+            return;
+
+        Handler delayLockHandler = new Handler();
+        final Runnable runnable = new Runnable() {
+            public void run() {
+                sysUtil.lockScreen();
+            }
+        };
+
+        final Thread updateCalenderThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                isCalendarUpdating = true;
+
+                updateStatusBar(String.format("Refreshing"));
+
+                String urlCalendar = "https://alltobid.cf/einkcal/1.png";
+
+                netUtil.setWifiStatus(true);
+
+                for (int wifiAttempt = 0; wifiAttempt < 6; wifiAttempt++) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    if (netUtil.getWifiStatus() == EinkCalUtil.WifiStatus.WIFI_ON) {
+                        String wifiInfo = netUtil.getWifiInfo();
+                        updateStatusBar(wifiInfo);
+                        break;
+                    }
+                }
+
+                if (netUtil.getWifiStatus() == EinkCalUtil.WifiStatus.WIFI_ON) {
+                    try {
+                        URL url = new URL(urlCalendar);
+                        HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+                        httpURLConnection.setConnectTimeout(10000);
+                        httpURLConnection.setDoInput(true);
+                        httpURLConnection.setRequestProperty("Cache-Control", "no-cache");
+                        httpURLConnection.setDefaultUseCaches(false);
+                        httpURLConnection.setUseCaches(false);
+                        httpURLConnection.connect();
+                        int responseCode = httpURLConnection.getResponseCode();
+
+                        if (responseCode == HttpURLConnection.HTTP_OK) {
+                            updateStatusBar(String.format("Update"));
+
+                            InputStream inputStream = httpURLConnection.getInputStream();
+                            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                            inputStream.close();
+
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    ImageView imageView = findViewById(R.id.imageCalendar);
+                                    imageView.setImageBitmap(bitmap);
+                                    refreshScreen();
+                                }
+                            });
+
+                            delayLockHandler.postDelayed(runnable, 5000);
+                        } else {
+                            updateStatusBar(String.format("HTTP resp %d", responseCode));
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        updateStatusBar(String.format("%s", e.getMessage()));
+                    }
+                } else {
+                    updateStatusBar("Failed to enable WiFi");
+                }
+                netUtil.setWifiStatus(false);
+
+                isCalendarUpdating = false;
+            }
+        });
+
+        updateCalenderThread.start();
+    }
 
     private void updateStatusBar(String log) {
         EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
         int batteryLevel = sysUtil.getBatteryLevel();
         String time = sysUtil.getTime();
-        String deviceStatus = String.format("Batt:%d%%", batteryLevel);
+        String deviceStatus = String.format("Batt:%d%% %s:%s", batteryLevel, log, time);
 
         runOnUiThread(new Runnable() {
             @Override
@@ -131,7 +168,7 @@ public class EinkCalActivity extends AppCompatActivity {
         registerReceiver(alarmReceiver, intentFilter);
     }
 
-    private void installScreen() {
+    private void installScreenStatus() {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -151,33 +188,37 @@ public class EinkCalActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
 
-        RelativeLayout relativeLayout = findViewById(R.id.layoutCalendar);
-        relativeLayout.setOnClickListener(new View.OnClickListener() {
+        View.OnClickListener updateListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                updateCalender.start();
-            }
-        });
-
-        ImageView imageView = findViewById(R.id.imageCalendar);
-        imageView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateCalender.start();
-            }
-        });
-
-        installAlarm();
-        installScreen();
-
-        Handler handler = new Handler();
-        final Runnable runnable = new Runnable() {
-            public void run() {
-                updateCalender.start();
+                updateCalendar();
             }
         };
 
-        handler.postDelayed(runnable, 2000);
+        RelativeLayout relativeLayout = findViewById(R.id.layoutCalendar);
+        relativeLayout.setOnClickListener(updateListener);
+
+        ImageView imageView = findViewById(R.id.imageCalendar);
+        imageView.setOnClickListener(updateListener);
+
+        View.OnClickListener exitListener = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+                System.exit(0);
+            }
+        };
+
+        TextView textStatus = findViewById(R.id.textStatus);
+        textStatus.setOnClickListener(exitListener);
+
+        TextView textScreen = findViewById(R.id.textScreen);
+        textScreen.setOnClickListener(exitListener);
+
+        installAlarm();
+        installScreenStatus();
+
+        updateCalendar();
     }
 
     @Override

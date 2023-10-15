@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">E-Ink Calendar</string>
+    <string name="device_admin">einkcal</string>
+    <string name="device_admin_description">einkcal lock screen</string>
 </resources>
