@@ -1,6 +1,5 @@
 package com.hooku.einkcal;
 
-import android.app.admin.DeviceAdminReceiver;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -11,6 +10,8 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.widget.Toast;
+
+import com.hooku.einkcal.receiver.Admin;
 
 import java.io.DataOutputStream;
 import java.io.File;
@@ -128,29 +129,20 @@ public class EinkCalUtil {
                 manager.lockNow();
             } catch (SecurityException e) {
                 Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
-                // dpm set-active-admin com.hooku.einkcal/.EinkCalUtil\$SysUtil\$adminReceiver
-                addDeviceAdmin();
+                RootUtil rootUtil = new RootUtil();
+                rootUtil.runSudo("dpm set-active-admin com.hooku.einkcal/.receiver.Admin");
+                //addDeviceAdmin();
             }
         }
 
         private void addDeviceAdmin() {
-            ComponentName deviceAdmin = new ComponentName(context, adminReceiver.class);
+            ComponentName deviceAdmin = new ComponentName(context, Admin.class);
             Intent intent = new Intent(
                     DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
             intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, deviceAdmin);
             intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "einkcal lock screen");
-
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-        }
-
-        static public class adminReceiver extends DeviceAdminReceiver {
-            @Override
-            public void onDisabled(Context context, Intent intent) {
-            }
-
-            @Override
-            public void onEnabled(Context context, Intent intent) {
-            }
         }
     }
 

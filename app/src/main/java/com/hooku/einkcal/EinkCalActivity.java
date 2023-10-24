@@ -19,32 +19,31 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.hooku.einkcal.receiver.Broadcast;
+
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Calendar;
 
-public class EinkCalActivity extends AppCompatActivity {
-    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String deviceStatus = String.format("Scr:%s", intent.getAction() == Intent.ACTION_SCREEN_ON ? "On" : "Off");
-
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    TextView textView = findViewById(R.id.textScreen);
-                    textView.setText(deviceStatus);
-                }
-            });
-        }
-    };
-    private final BroadcastReceiver alarmReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-        }
-    };
+public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
+    private BroadcastReceiver broadcastReceiver;
     private volatile boolean isCalendarUpdating = false;
+
+    @Override
+    public void cbScreenOn() {
+        updateScreenStatus("On");
+    }
+
+    @Override
+    public void cbScreenOff() {
+        updateScreenStatus("Off");
+    }
+
+    @Override
+    public void cbAlarm() {
+        updateCalendar();
+    }
 
     private void updateCalendar() {
         EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
@@ -65,13 +64,13 @@ public class EinkCalActivity extends AppCompatActivity {
             public void run() {
                 isCalendarUpdating = true;
 
-                updateStatusBar(String.format("Refreshing"));
+                updateDeviceStatus(String.format("Refreshing"));
 
                 String urlCalendar = "https://alltobid.cf/einkcal/1.png";
 
                 netUtil.setWifiStatus(true);
 
-                for (int wifiAttempt = 0; wifiAttempt < 6; wifiAttempt++) {
+                for (int wifiAttempt = 0; wifiAttempt < 12; wifiAttempt++) {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
@@ -79,7 +78,7 @@ public class EinkCalActivity extends AppCompatActivity {
                     }
                     if (netUtil.getWifiStatus() == EinkCalUtil.WifiStatus.WIFI_ON) {
                         String wifiInfo = netUtil.getWifiInfo();
-                        updateStatusBar(wifiInfo);
+                        updateDeviceStatus(wifiInfo);
                         break;
                     }
                 }
@@ -97,7 +96,7 @@ public class EinkCalActivity extends AppCompatActivity {
                         int responseCode = httpURLConnection.getResponseCode();
 
                         if (responseCode == HttpURLConnection.HTTP_OK) {
-                            updateStatusBar(String.format("Update"));
+                            updateDeviceStatus(String.format("Update"));
 
                             InputStream inputStream = httpURLConnection.getInputStream();
                             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
@@ -106,7 +105,7 @@ public class EinkCalActivity extends AppCompatActivity {
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    ImageView imageView = findViewById(R.id.imageCalendar);
+                                    final ImageView imageView = findViewById(R.id.imageCalendar);
                                     imageView.setImageBitmap(bitmap);
                                     refreshScreen();
                                 }
@@ -114,14 +113,14 @@ public class EinkCalActivity extends AppCompatActivity {
 
                             delayLockHandler.postDelayed(runnable, 5000);
                         } else {
-                            updateStatusBar(String.format("HTTP resp %d", responseCode));
+                            updateDeviceStatus(String.format("HTTP resp %d", responseCode));
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
-                        updateStatusBar(String.format("%s", e.getMessage()));
+                        updateDeviceStatus(String.format("%s", e.getMessage()));
                     }
                 } else {
-                    updateStatusBar("Failed to enable WiFi");
+                    updateDeviceStatus("Failed to enable WiFi");
                 }
                 netUtil.setWifiStatus(false);
 
@@ -132,17 +131,27 @@ public class EinkCalActivity extends AppCompatActivity {
         updateCalenderThread.start();
     }
 
-    private void updateStatusBar(String log) {
+    private void updateDeviceStatus(String status) {
         EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
         int batteryLevel = sysUtil.getBatteryLevel();
         String time = sysUtil.getTime();
-        String deviceStatus = String.format("Batt:%d%% %s:%s", batteryLevel, log, time);
+        String deviceStatus = String.format("Batt:%d%% %s:%s", batteryLevel, status, time);
 
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                TextView textView = findViewById(R.id.textStatus);
+                final TextView textView = findViewById(R.id.textStatus);
                 textView.setText(deviceStatus);
+            }
+        });
+    }
+
+    private void updateScreenStatus(String status) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final TextView textView = findViewById(R.id.textScreen);
+                textView.setText(status);
             }
         });
     }
@@ -151,32 +160,33 @@ public class EinkCalActivity extends AppCompatActivity {
         Toast.makeText(getApplicationContext(), "Updated", Toast.LENGTH_LONG).show();
     }
 
+    private void installBroadcast() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        intentFilter.addAction(Broadcast.ACTION_ALARM);
+        registerReceiver(broadcastReceiver, intentFilter);
+    }
+
     private void installAlarm() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, 0);
-        calendar.set(Calendar.MINUTE, 40);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
 
-        Intent intent = new Intent(this, alarmReceiver.getClass());
+        Intent intent = new Intent(this, broadcastReceiver.getClass());
+        intent.setAction(Broadcast.ACTION_ALARM);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        alarmManager.setInexactRepeating(AlarmManager.RTC, calendar.getTimeInMillis(), AlarmManager.INTERVAL_HOUR * 3, pendingIntent);
-
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("updateCalendar");
-        registerReceiver(alarmReceiver, intentFilter);
-    }
-
-    private void installScreenStatus() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        registerReceiver(screenReceiver, intentFilter);
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), 5000, pendingIntent);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        broadcastReceiver = new Broadcast(this);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -195,10 +205,10 @@ public class EinkCalActivity extends AppCompatActivity {
             }
         };
 
-        RelativeLayout relativeLayout = findViewById(R.id.layoutCalendar);
+        final RelativeLayout relativeLayout = findViewById(R.id.layoutCalendar);
         relativeLayout.setOnClickListener(updateListener);
 
-        ImageView imageView = findViewById(R.id.imageCalendar);
+        final ImageView imageView = findViewById(R.id.imageCalendar);
         imageView.setOnClickListener(updateListener);
 
         View.OnClickListener exitListener = new View.OnClickListener() {
@@ -209,21 +219,20 @@ public class EinkCalActivity extends AppCompatActivity {
             }
         };
 
-        TextView textStatus = findViewById(R.id.textStatus);
+        final TextView textStatus = findViewById(R.id.textStatus);
         textStatus.setOnClickListener(exitListener);
 
-        TextView textScreen = findViewById(R.id.textScreen);
+        final TextView textScreen = findViewById(R.id.textScreen);
         textScreen.setOnClickListener(exitListener);
 
         installAlarm();
-        installScreenStatus();
+        installBroadcast();
 
         updateCalendar();
     }
 
     @Override
     protected void onStop() {
-        unregisterReceiver(alarmReceiver);
         super.onStop();
     }
 }

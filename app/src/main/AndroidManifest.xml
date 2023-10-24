@@ -23,7 +23,7 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".EinkCalUtil$SysUtil$adminReceiver"
+        <receiver android:name=".receiver.Admin"
             android:label="@string/device_admin"
             android:description="@string/device_admin_description"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
