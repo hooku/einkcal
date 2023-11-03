@@ -8,10 +8,13 @@ import com.hooku.einkcal.EinkCalInterface;
 
 public class Broadcast extends BroadcastReceiver {
     public static final String ACTION_ALARM = "com.hooku.einkcal.BroadcastAlarmReceiver";
-    private final EinkCalInterface iface;
+    private static EinkCalInterface iface = null;
+
+    public Broadcast() {
+    }
 
     public Broadcast(EinkCalInterface iface) {
-        this.iface = iface;
+        Broadcast.iface = iface;
     }
 
     @Override

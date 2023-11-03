@@ -5,7 +5,6 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -160,24 +159,16 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
         Toast.makeText(getApplicationContext(), "Updated", Toast.LENGTH_LONG).show();
     }
 
-    private void installBroadcast() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        intentFilter.addAction(Broadcast.ACTION_ALARM);
-        registerReceiver(broadcastReceiver, intentFilter);
-    }
-
     private void installAlarm() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, 0);
         calendar.set(Calendar.MINUTE, 0);
         calendar.set(Calendar.SECOND, 0);
 
-        Intent intent = new Intent(this, broadcastReceiver.getClass());
+        Intent intent = new Intent(getApplicationContext(), broadcastReceiver.getClass());
         intent.setAction(Broadcast.ACTION_ALARM);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
 
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), 5000, pendingIntent);
@@ -226,7 +217,6 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
         textScreen.setOnClickListener(exitListener);
 
         installAlarm();
-        installBroadcast();
 
         updateCalendar();
     }
