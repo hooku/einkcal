@@ -7,7 +7,6 @@ import android.content.Intent;
 import com.hooku.einkcal.EinkCalInterface;
 
 public class Broadcast extends BroadcastReceiver {
-    public static final String ACTION_ALARM = "com.hooku.einkcal.BroadcastAlarmReceiver";
     private static EinkCalInterface iface = null;
 
     public Broadcast() {
@@ -25,9 +24,6 @@ public class Broadcast extends BroadcastReceiver {
                 break;
             case Intent.ACTION_SCREEN_OFF:
                 iface.cbScreenOff();
-                break;
-            case ACTION_ALARM:
-                iface.cbAlarm();
                 break;
             default:
                 break;

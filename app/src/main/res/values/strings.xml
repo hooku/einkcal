@@ -2,6 +2,6 @@
     <string name="app_name">E-Ink Calendar</string>
     <string name="receiver_admin">einkcal_admin</string>
     <string name="receiver_admin_description">einkcal admin receiver</string>
-    <string name="receiver_broadcast">einkcal_broadcast</string>
-    <string name="receiver_broadcast_description">einkcal broadcast receiver</string>
+    <string name="receiver_alarm">einkcal_alarm</string>
+    <string name="receiver_alarm_description">einkcal alarm receiver</string>
 </resources>

@@ -24,8 +24,8 @@
         </activity>
 
         <receiver android:name=".receiver.Admin"
-            android:label="@string/device_admin"
-            android:description="@string/device_admin_description"
+            android:label="@string/receiver_admin"
+            android:description="@string/receiver_admin_description"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
             android:exported="false">
             <meta-data android:name="android.app.device_admin"
@@ -35,13 +35,11 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".receiver.Broadcast"
-            android:label="@string/receiver_broadcast"
-            android:description="@string/receiver_broadcast_description"
+        <receiver android:name=".receiver.Alarm"
+            android:label="@string/receiver_alarm"
+            android:description="@string/receiver_alarm_description"
             android:exported="false">
             <intent-filter>
-                <action android:name="android.intent.action.SCREEN_ON" />
-                <action android:name="android.intent.action.SCREEN_OFF" />
                 <action android:name="com.hooku.einkcal.BroadcastAlarmReceiver" />
             </intent-filter>
         </receiver>

@@ -5,11 +5,13 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.StrictMode;
+import android.text.format.DateUtils;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -18,6 +20,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.hooku.einkcal.receiver.Alarm;
 import com.hooku.einkcal.receiver.Broadcast;
 
 import java.io.InputStream;
@@ -26,8 +29,20 @@ import java.net.URL;
 import java.util.Calendar;
 
 public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
+    private final String URL_CALENDAR = "https://alltobid.cf/einkcal/1.png";
+
+    private final int REFRESH_HOUR_INTERVAL = 1;
+    private final int SLEEP_HOUR_START = 1;
+    private final int SLEEP_HOUR_STOP = 6;
+
+    private final int WIFI_ON_ATTEMPT = 20;
+    private final int HTTP_TIMEOUT = 15;
+    private final int LOCK_DELAY = 5;
+
+    private BroadcastReceiver alarmReceiver;
     private BroadcastReceiver broadcastReceiver;
     private volatile boolean isCalendarUpdating = false;
+    private long previousLastModified = 0;
 
     @Override
     public void cbScreenOn() {
@@ -41,7 +56,14 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
     @Override
     public void cbAlarm() {
-        updateCalendar();
+        Calendar calendar = Calendar.getInstance();
+        int hour24 = calendar.get(Calendar.HOUR_OF_DAY);
+        if ((hour24 >= SLEEP_HOUR_START) && (hour24 <= SLEEP_HOUR_STOP)) {
+            // night time
+        } else {
+            EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
+            updateCalendar();
+        }
     }
 
     private void updateCalendar() {
@@ -65,13 +87,11 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
                 updateDeviceStatus(String.format("Refreshing"));
 
-                String urlCalendar = "https://alltobid.cf/einkcal/1.png";
-
                 netUtil.setWifiStatus(true);
 
-                for (int wifiAttempt = 0; wifiAttempt < 12; wifiAttempt++) {
+                for (int wifiAttempt = 0; wifiAttempt < WIFI_ON_ATTEMPT; wifiAttempt++) {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(DateUtils.SECOND_IN_MILLIS);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -84,33 +104,39 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
                 if (netUtil.getWifiStatus() == EinkCalUtil.WifiStatus.WIFI_ON) {
                     try {
-                        URL url = new URL(urlCalendar);
+                        URL url = new URL(URL_CALENDAR);
                         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
-                        httpURLConnection.setConnectTimeout(10000);
+                        httpURLConnection.setConnectTimeout((int) (HTTP_TIMEOUT * DateUtils.SECOND_IN_MILLIS));
                         httpURLConnection.setDoInput(true);
                         httpURLConnection.setRequestProperty("Cache-Control", "no-cache");
                         httpURLConnection.setDefaultUseCaches(false);
                         httpURLConnection.setUseCaches(false);
                         httpURLConnection.connect();
                         int responseCode = httpURLConnection.getResponseCode();
+                        long lastModified = httpURLConnection.getLastModified();
 
                         if (responseCode == HttpURLConnection.HTTP_OK) {
-                            updateDeviceStatus(String.format("Update"));
+                            if (previousLastModified != lastModified) {
+                                previousLastModified = lastModified;
+                                updateDeviceStatus(String.format("Update"));
 
-                            InputStream inputStream = httpURLConnection.getInputStream();
-                            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                            inputStream.close();
+                                InputStream inputStream = httpURLConnection.getInputStream();
+                                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                                inputStream.close();
 
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    final ImageView imageView = findViewById(R.id.imageCalendar);
-                                    imageView.setImageBitmap(bitmap);
-                                    refreshScreen();
-                                }
-                            });
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        final ImageView imageView = findViewById(R.id.imageCalendar);
+                                        imageView.setImageBitmap(bitmap);
+                                        refreshScreen();
+                                    }
+                                });
+                            } else {
+                                updateDeviceStatus(String.format("Not changed"));
+                            }
 
-                            delayLockHandler.postDelayed(runnable, 5000);
+                            delayLockHandler.postDelayed(runnable, LOCK_DELAY * DateUtils.SECOND_IN_MILLIS);
                         } else {
                             updateDeviceStatus(String.format("HTTP resp %d", responseCode));
                         }
@@ -159,23 +185,30 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
         Toast.makeText(getApplicationContext(), "Updated", Toast.LENGTH_LONG).show();
     }
 
-    private void installAlarm() {
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, 0);
-        calendar.set(Calendar.MINUTE, 0);
-        calendar.set(Calendar.SECOND, 0);
+    private void installScreenBroadcast() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(broadcastReceiver, intentFilter);
+    }
 
-        Intent intent = new Intent(getApplicationContext(), broadcastReceiver.getClass());
-        intent.setAction(Broadcast.ACTION_ALARM);
+    private void installAlarm() {
+        Intent intent = new Intent(getApplicationContext(), alarmReceiver.getClass());
+        intent.setAction(Alarm.ACTION_ALARM);
+
         PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
 
+        Calendar calendar = Calendar.getInstance();
+        calendar.add(Calendar.HOUR, REFRESH_HOUR_INTERVAL);
+
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), 5000, pendingIntent);
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), REFRESH_HOUR_INTERVAL * AlarmManager.INTERVAL_HOUR, pendingIntent);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        alarmReceiver = new Alarm(this);
         broadcastReceiver = new Broadcast(this);
 
         super.onCreate(savedInstanceState);
@@ -216,6 +249,7 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
         final TextView textScreen = findViewById(R.id.textScreen);
         textScreen.setOnClickListener(exitListener);
 
+        installScreenBroadcast();
         installAlarm();
 
         updateCalendar();

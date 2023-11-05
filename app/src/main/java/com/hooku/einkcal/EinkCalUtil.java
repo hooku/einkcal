@@ -4,11 +4,13 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.display.DisplayManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
+import android.view.Display;
 import android.widget.Toast;
 
 import com.hooku.einkcal.receiver.Admin;
@@ -129,9 +131,25 @@ public class EinkCalUtil {
                 manager.lockNow();
             } catch (SecurityException e) {
                 Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
-                RootUtil rootUtil = new RootUtil();
-                rootUtil.runSudo("dpm set-active-admin com.hooku.einkcal/.receiver.Admin");
+                ShellUtil shellUtil = new ShellUtil();
+                shellUtil.runSudo("dpm set-active-admin com.hooku.einkcal/.receiver.Admin");
                 //addDeviceAdmin();
+            }
+        }
+
+        void powerOnScreen() {
+            boolean isScreenOn = false;
+            DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+            for (Display display : displayManager.getDisplays()) {
+                if (display.getState() == Display.STATE_ON) {
+                    isScreenOn = true;
+                    break;
+                }
+            }
+
+            if (!isScreenOn) {
+                ShellUtil shellUtil = new ShellUtil();
+                shellUtil.runSudo("input keyevent 26");
             }
         }
 
@@ -146,7 +164,7 @@ public class EinkCalUtil {
         }
     }
 
-    static class RootUtil {
+    static class ShellUtil {
         private void runSudo(String command) {
             try {
                 Process su = Runtime.getRuntime().exec("su");
