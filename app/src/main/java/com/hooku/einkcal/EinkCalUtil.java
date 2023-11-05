@@ -149,7 +149,7 @@ public class EinkCalUtil {
 
             if (!isScreenOn) {
                 ShellUtil shellUtil = new ShellUtil();
-                shellUtil.runSudo("input keyevent 26");
+                shellUtil.runSudo2("input keyevent 26");
             }
         }
 
@@ -178,6 +178,14 @@ public class EinkCalUtil {
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void runSudo2(String command) {
+            try {
+                Runtime.getRuntime().exec(new String[]{"su", "-c", command});
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }

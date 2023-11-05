@@ -31,7 +31,7 @@ import java.util.Calendar;
 public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
     private final String URL_CALENDAR = "https://alltobid.cf/einkcal/1.png";
 
-    private final int REFRESH_HOUR_INTERVAL = 1;
+    private final int REFRESH_15MIN_INTERVAL = 2;
     private final int SLEEP_HOUR_START = 1;
     private final int SLEEP_HOUR_STOP = 6;
 
@@ -62,6 +62,7 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
             // night time
         } else {
             EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
+            sysUtil.powerOnScreen();
             updateCalendar();
         }
     }
@@ -200,10 +201,10 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
 
         Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.HOUR, REFRESH_HOUR_INTERVAL);
+        calendar.add(Calendar.MINUTE, 1);
 
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), REFRESH_HOUR_INTERVAL * AlarmManager.INTERVAL_HOUR, pendingIntent);
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), REFRESH_15MIN_INTERVAL * AlarmManager.INTERVAL_FIFTEEN_MINUTES, pendingIntent);
     }
 
     @Override
