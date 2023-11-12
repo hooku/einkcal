@@ -33,7 +33,7 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
     private final int REFRESH_15MIN_INTERVAL = 2;
     private final int SLEEP_HOUR_START = 1;
-    private final int SLEEP_HOUR_STOP = 6;
+    private final int SLEEP_HOUR_STOP = 4;
 
     private final int WIFI_ON_ATTEMPT = 20;
     private final int HTTP_TIMEOUT = 15;
@@ -63,7 +63,6 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
         } else {
             EinkCalUtil.SysUtil sysUtil = new EinkCalUtil.SysUtil(getApplicationContext());
             sysUtil.powerOnScreen();
-            updateCalendar();
         }
     }
 
@@ -107,7 +106,7 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
                     try {
                         URL url = new URL(URL_CALENDAR);
                         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
-                        httpURLConnection.setConnectTimeout((int) (HTTP_TIMEOUT * DateUtils.SECOND_IN_MILLIS));
+                        httpURLConnection.setConnectTimeout(HTTP_TIMEOUT * (int) DateUtils.SECOND_IN_MILLIS);
                         httpURLConnection.setDoInput(true);
                         httpURLConnection.setRequestProperty("Cache-Control", "no-cache");
                         httpURLConnection.setDefaultUseCaches(false);
@@ -209,14 +208,17 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        alarmReceiver = new Alarm(this);
-        broadcastReceiver = new Broadcast(this);
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
+
+        alarmReceiver = new Alarm(this);
+        broadcastReceiver = new Broadcast(this);
+
+        installScreenBroadcast();
+        installAlarm();
     }
 
     @Override
@@ -249,9 +251,6 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
         final TextView textScreen = findViewById(R.id.textScreen);
         textScreen.setOnClickListener(exitListener);
-
-        installScreenBroadcast();
-        installAlarm();
 
         updateCalendar();
     }
