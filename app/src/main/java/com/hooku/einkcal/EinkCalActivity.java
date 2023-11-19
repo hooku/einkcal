@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
     private final String URL_CALENDAR = "https://alltobid.cf/einkcal/1.png";
@@ -38,10 +40,14 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
     private final int WIFI_ON_ATTEMPT = 20;
     private final int HTTP_TIMEOUT = 15;
     private final int LOCK_DELAY = 5;
+    private final int UPDATE_TIMEOUT = 40;
 
     private BroadcastReceiver alarmReceiver;
     private BroadcastReceiver broadcastReceiver;
+
     private volatile boolean isCalendarUpdating = false;
+    private Thread lastUpdateThread = null;
+    private Date lastUpdateTime;
     private long previousLastModified = 0;
 
     @Override
@@ -80,7 +86,7 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
             }
         };
 
-        final Thread updateCalenderThread = new Thread(new Runnable() {
+        final Thread calenderUpdateThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 isCalendarUpdating = true;
@@ -153,7 +159,18 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
             }
         });
 
-        updateCalenderThread.start();
+        Date now = Calendar.getInstance().getTime();
+        if (lastUpdateThread != null) {
+            long diffInMilliseconds = now.getTime() - lastUpdateTime.getTime();
+            long diffInSeconds = TimeUnit.SECONDS.convert(diffInMilliseconds, TimeUnit.MILLISECONDS);
+            if ((diffInSeconds >= UPDATE_TIMEOUT) && lastUpdateThread.isAlive()) {
+                lastUpdateThread.interrupt();
+                isCalendarUpdating = false;
+            }
+        }
+        lastUpdateTime = now;
+        lastUpdateThread = calenderUpdateThread;
+        calenderUpdateThread.start();
     }
 
     private void updateDeviceStatus(String status) {
