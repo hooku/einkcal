@@ -29,6 +29,7 @@ import java.net.URL;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
     private final String URL_CALENDAR = "https://alltobid.cf/einkcal/1.png";
@@ -93,13 +94,17 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
 
                 updateDeviceStatus(String.format("Refreshing"));
 
-                netUtil.setWifiStatus(true);
+                try {
+                    netUtil.setWifiStatus(true);
+                } catch (TimeoutException e) {
+                    updateDeviceStatus(e.getMessage());
+                }
 
                 for (int wifiAttempt = 0; wifiAttempt < WIFI_ON_ATTEMPT; wifiAttempt++) {
                     try {
                         Thread.sleep(DateUtils.SECOND_IN_MILLIS);
                     } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        updateDeviceStatus(e.getMessage());
                     }
                     if (netUtil.getWifiStatus() == EinkCalUtil.WifiStatus.WIFI_ON) {
                         String wifiInfo = netUtil.getWifiInfo();
@@ -147,13 +152,16 @@ public class EinkCalActivity extends AppCompatActivity implements EinkCalInterfa
                             updateDeviceStatus(String.format("HTTP resp %d", responseCode));
                         }
                     } catch (Exception e) {
-                        e.printStackTrace();
-                        updateDeviceStatus(String.format("%s", e.getMessage()));
+                        updateDeviceStatus(e.getMessage());
                     }
                 } else {
                     updateDeviceStatus("Failed to enable WiFi");
                 }
-                netUtil.setWifiStatus(false);
+                try {
+                    netUtil.setWifiStatus(false);
+                } catch (TimeoutException e) {
+                    updateDeviceStatus(e.getMessage());
+                }
 
                 isCalendarUpdating = false;
             }

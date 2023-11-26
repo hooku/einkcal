@@ -24,8 +24,17 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class EinkCalUtil {
+
+    private static final int WIFI_TIMEOUT = 5;
 
     enum WifiStatus {
         WIFI_OFF,
@@ -42,7 +51,7 @@ public class EinkCalUtil {
 
         public WifiStatus getWifiStatus() {
             WifiStatus wifiStatus;
-            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
             if (wifiManager.isWifiEnabled()) {
                 ConnectivityManager connectivityManager = (ConnectivityManager)
@@ -61,18 +70,33 @@ public class EinkCalUtil {
             return wifiStatus;
         }
 
-        void setWifiStatus(boolean isOn) {
+        void setWifiStatus(boolean isOn) throws TimeoutException {
+            ExecutorService executor = Executors.newCachedThreadPool();
+            Callable<Void> task = new Callable<Void>() {
+                public Void call() {
+                    try {
+                        WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                        wifiManager.setWifiEnabled(isOn);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                }
+            };
+            Future<Void> future = executor.submit(task);
             try {
-                WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-                wifiManager.setWifiEnabled(isOn);
-            } catch (Exception e) {
+                future.get(WIFI_TIMEOUT, TimeUnit.SECONDS);
+            } catch (ExecutionException | InterruptedException | TimeoutException e) {
                 e.printStackTrace();
+                throw new TimeoutException(e.getMessage());
+            } finally {
+                future.cancel(true);
             }
         }
 
         public String getWifiInfo() {
             String wifiStatus;
-            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifiManager.isWifiEnabled()) {
                 WifiInfo wifiInfo = wifiManager.getConnectionInfo();
                 int ipAddress = wifiInfo.getIpAddress();
@@ -97,7 +121,7 @@ public class EinkCalUtil {
             try {
                 File file = new File(fileName);
                 RandomAccessFile randomAccessFile = new RandomAccessFile(file, "r");
-                return Long.valueOf(randomAccessFile.readLine());
+                return Long.parseLong(randomAccessFile.readLine());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -107,22 +131,19 @@ public class EinkCalUtil {
         private String getCPUFreq() {
             String cpuFreqFile = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
             long cpuFreq = readLong(cpuFreqFile);
-            String cpuFreqMHz = cpuFreq / 1000 + "MHz";
-            return cpuFreqMHz;
+            return cpuFreq / 1000 + "MHz";
         }
 
         int getBatteryLevel() {
             BatteryManager batteryManager = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
-            int batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-            return batteryLevel;
+            return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
         }
 
         String getTime() {
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT+8:00"));
             Date localTime = calendar.getTime();
             DateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-            String time = dateFormat.format(localTime);
-            return time;
+            return dateFormat.format(localTime);
         }
 
         void lockScreen() {
@@ -175,9 +196,7 @@ public class EinkCalUtil {
                 outputStream.writeBytes("exit\n");
                 outputStream.flush();
                 su.waitFor();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
+            } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
         }
