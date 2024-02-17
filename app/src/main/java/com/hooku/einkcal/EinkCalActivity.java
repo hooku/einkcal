@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class EinkCalActivity extends AppCompatActivity implements EinkCalInterface {
-    private final String URL_CALENDAR = "https://alltobid.cf/einkcal/1.png";
+    private final String URL_CALENDAR = "https://alltobid.529000.xyz/einkcal/1.png";
 
     private final int REFRESH_15MIN_INTERVAL = 2;
     private final int SLEEP_HOUR_START = 1;
